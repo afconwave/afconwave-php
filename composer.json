@@ -1,0 +1,26 @@
+{
+    "name": "afconwave/sdk",
+    "description": "Official AfconWave PHP SDK",
+    "keywords": [
+        "payments",
+        "afconwave",
+        "africa",
+        "mobile money"
+    ],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "AfconWave Team",
+            "email": "dev@afconwave.com"
+        }
+    ],
+    "require": {
+        "php": "^7.4 || ^8.0",
+        "guzzlehttp/guzzle": "^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "AfconWave\\": "src/"
+        }
+    }
+}

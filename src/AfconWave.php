@@ -15,7 +15,7 @@ class AfconWave
     /** @var string */
     private $secretKey;
 
-    public function __construct(string $secretKey, string $baseUrl = 'https://api.afconwave.com/v1')
+    public function __construct(string $secretKey, string $baseUrl = 'https://api.afconwave.com/api/v1')
     {
         $this->secretKey = $secretKey;
         $this->client = new Client([
@@ -30,12 +30,29 @@ class AfconWave
     }
 
     /**
-     * Verifies an incoming webhook signature.
+     * Verifies an incoming webhook signature and checks for replay attacks.
      */
-    public static function verifyWebhookSignature(string $payload, string $signature, string $secret): bool
+    public static function verifyWebhookSignature(string $payload, string $signature, string $secret, int $tolerance = 300): bool
     {
+        // 1. Verify Signature
         $expected = hash_hmac('sha256', $payload, $secret);
-        return hash_equals($expected, $signature);
+        if (!hash_equals($expected, $signature)) {
+            return false;
+        }
+
+        // 2. Verify Timestamp (Replay Protection)
+        $data = json_decode($payload, true);
+        if (isset($data['timestamp'])) {
+            $currentTime = time();
+            $webhookTime = (int) ($data['timestamp'] / 1000); // ms to s
+            $age = abs($currentTime - $webhookTime);
+
+            if ($age > $tolerance) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -60,7 +77,7 @@ class AfconWave
         }
     }
 
-    // ─── Top-level Convenience Methods (Matches README) ─────────────────────
+    // ─── Top-level Convenience Methods ────────────────────────────────────────
 
     public function createPayment(array $data)
     {

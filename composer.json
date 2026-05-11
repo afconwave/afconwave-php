@@ -1,26 +1,54 @@
 {
-    "name": "afconwave/sdk",
-    "description": "Official AfconWave PHP SDK",
+    "name": "afconwave/afconwave-php",
+    "description": "Official AfconWave PHP SDK — Pan-African payments, payouts, crypto, refunds & disputes.",
+    "type": "library",
     "keywords": [
         "payments",
+        "payouts",
         "afconwave",
         "africa",
-        "mobile money"
+        "mobile-money",
+        "fintech"
     ],
+    "homepage": "https://docs.afconwave.com/sdks/php",
     "license": "MIT",
     "authors": [
         {
             "name": "AfconWave Team",
-            "email": "dev@afconwave.com"
+            "email": "dev@afconwave.com",
+            "homepage": "https://afconwave.com"
         }
     ],
+    "support": {
+        "issues": "https://github.com/afconwave/afconwave-php/issues",
+        "source": "https://github.com/afconwave/afconwave-php",
+        "docs": "https://docs.afconwave.com",
+        "email": "support@afconwave.com"
+    },
     "require": {
         "php": "^7.4 || ^8.0",
+        "ext-json": "*",
         "guzzlehttp/guzzle": "^7.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.0 || ^10.0"
     },
     "autoload": {
         "psr-4": {
             "AfconWave\\": "src/"
         }
-    }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AfconWave\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
 }

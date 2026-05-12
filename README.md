@@ -44,7 +44,7 @@ require "vendor/autoload.php";
 
 use AfconWave\AfconWave;
 
-$afw = new AfconWave('sk_test_your_key_here');
+$afw = new AfconWave('afw_sk_test_your_key_here');
 ```
 
 ---
@@ -188,10 +188,10 @@ try {
 
 ## Sandbox / Testing
 
-Use test keys prefixed with `sk_test_` to run inside sandbox mode.
+Use test keys prefixed with `afw_sk_test_` to run inside sandbox mode.
 
 ```php
-$afw = new AfconWave('sk_test_...');
+$afw = new AfconWave('afw_sk_test_...');
 ```
 
 ---

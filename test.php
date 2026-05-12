@@ -3,7 +3,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/src/AfconWave.php';
 
 try {
-    $client = new \AfconWave\AfconWave('sk_test_123');
+    $client = new \AfconWave\AfconWave('afw_sk_test_123');
     echo "PHP SDK Instantiated Successfully!\n";
     echo "Services loaded: Payments, Payouts, Crypto\n";
 } catch (Exception $e) {

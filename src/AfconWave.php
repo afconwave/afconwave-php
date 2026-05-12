@@ -26,7 +26,8 @@ class AfconWave
         $this->secretKey = $secretKey;
         
         $sandbox = $options['sandbox'] ?? false;
-        $baseUrl = $options['base_url'] 
+        $baseUrl = getenv('AFCONWAVE_BASE_URL') 
+            ?? $options['base_url'] 
             ?? ($sandbox ? 'https://sandbox.api.afconwave.com/v1' : 'https://api.afconwave.com/v1');
 
         $this->client = new Client([

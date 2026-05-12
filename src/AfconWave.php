@@ -9,7 +9,7 @@ use AfconWave\Exceptions\AuthException;
 
 /**
  * AfconWave PHP SDK v1.1.0
- * Official Pan-African payments, payouts, crypto, refunds & disputes client.
+ * Official Global & African payments, payouts, crypto, refunds & disputes client.
  */
 class AfconWave
 {

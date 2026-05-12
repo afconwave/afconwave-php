@@ -1,6 +1,6 @@
 {
     "name": "afconwave/afconwave-php",
-    "description": "Official AfconWave PHP SDK — Pan-African payments, payouts, crypto, refunds & disputes.",
+    "description": "Official AfconWave PHP SDK — Global payments, payouts, crypto, refunds & disputes.",
     "type": "library",
     "keywords": [
         "payments",
@@ -8,7 +8,9 @@
         "afconwave",
         "africa",
         "mobile-money",
-        "fintech"
+        "fintech",
+        "global",
+        "cross-border"
     ],
     "homepage": "https://docs.afconwave.com/sdks/php",
     "license": "MIT",

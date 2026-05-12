@@ -21,9 +21,14 @@ class AfconWave
     /** @var string */
     private $secretKey;
 
-    public function __construct(string $secretKey, string $baseUrl = 'https://api.afconwave.com/v1')
+    public function __construct(string $secretKey, array $options = [])
     {
         $this->secretKey = $secretKey;
+        
+        $sandbox = $options['sandbox'] ?? false;
+        $baseUrl = $options['base_url'] 
+            ?? ($sandbox ? 'https://sandbox.api.afconwave.com/v1' : 'https://api.afconwave.com/v1');
+
         $this->client = new Client([
             'base_uri' => rtrim($baseUrl, '/') . '/',
             'headers' => [

@@ -7,13 +7,9 @@ use GuzzleHttp\Exception\GuzzleException;
 use AfconWave\Exceptions\AfconWaveException;
 use AfconWave\Exceptions\AuthException;
 
-/**
- * AfconWave PHP SDK v1.1.0
- * Official Global & African payments, payouts, crypto, refunds & disputes client.
- */
 class AfconWave
 {
-    public const VERSION = '1.1.0';
+    public const VERSION = '1.1.1';
 
     /** @var Client */
     private $client;
@@ -24,11 +20,11 @@ class AfconWave
     public function __construct(string $secretKey, array $options = [])
     {
         $this->secretKey = $secretKey;
-        
+
         $sandbox = $options['sandbox'] ?? false;
-        $baseUrl = getenv('AFCONWAVE_BASE_URL') 
-            ?? $options['base_url'] 
-            ?? ($sandbox ? 'https://sandbox.api.afconwave.com/v1' : 'https://api.afconwave.com/v1');
+        $baseUrl = getenv('AFCONWAVE_BASE_URL')
+            ?? $options['base_url']
+            ?? ($sandbox ? 'https://sandbox.api.afconwave.com/api/v1' : 'https://api.afconwave.com/api/v1');
 
         $this->client = new Client([
             'base_uri' => rtrim($baseUrl, '/') . '/',
@@ -42,14 +38,6 @@ class AfconWave
         ]);
     }
 
-    /**
-     * Verifies an incoming webhook signature and checks for replay attacks.
-     *
-     * @param string $payload   Raw request body string (do not decode)
-     * @param string $signature The X-AfconWave-Signature header value
-     * @param string $secret    Your webhook secret
-     * @param int    $tolerance Max age in seconds (default 300 = 5 min)
-     */
     public static function verifyWebhookSignature(
         string $payload,
         string $signature,
@@ -60,16 +48,14 @@ class AfconWave
             return false;
         }
 
-        // 1. Verify HMAC-SHA256 signature
         $expected = hash_hmac('sha256', $payload, $secret);
         if (!hash_equals($expected, $signature)) {
             return false;
         }
 
-        // 2. Replay protection — support both ms and seconds timestamps
         $data = json_decode($payload, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
-            return true; // Non-JSON payload: signature-only check
+            return true;
         }
 
         $timestamp = $data['timestamp']
@@ -79,10 +65,8 @@ class AfconWave
 
         if ($timestamp !== null) {
             $ts = (int) $timestamp;
-            // Normalize: if > 10^10 it's milliseconds
             $webhookTime = $ts > 10_000_000_000 ? (int) ($ts / 1000) : $ts;
-            $age = abs(time() - $webhookTime);
-            if ($age > $tolerance) {
+            if (abs(time() - $webhookTime) > $tolerance) {
                 return false;
             }
         }
@@ -90,12 +74,6 @@ class AfconWave
         return true;
     }
 
-    /**
-     * Internal HTTP request handler with structured error wrapping.
-     *
-     * @return mixed Decoded response data
-     * @throws AfconWaveException|AuthException
-     */
     public function request(string $method, string $uri, array $options = [])
     {
         try {
@@ -115,17 +93,10 @@ class AfconWave
         }
     }
 
-    // ─── Account ──────────────────────────────────────────────────────────────
-
-    /**
-     * Retrieves account balances for all supported currencies.
-     */
     public function getBalances(): array
     {
         return $this->request('GET', 'balances');
     }
-
-    // ─── Top-level Convenience Methods ────────────────────────────────────────
 
     public function createPayment(array $data)
     {
@@ -156,8 +127,6 @@ class AfconWave
     {
         return $this->request('GET', 'payouts', ['query' => $params]);
     }
-
-    // ─── Resource-based API ───────────────────────────────────────────────────
 
     public function payments()
     {

@@ -9,7 +9,7 @@ use AfconWave\Exceptions\AuthException;
 
 class AfconWave
 {
-    public const VERSION = '1.1.1';
+    public const VERSION = '2.0.0';
 
     /** @var Client */
     private $client;
@@ -19,22 +19,26 @@ class AfconWave
 
     public function __construct(string $secretKey, array $options = [])
     {
+        if ($secretKey === '' || strpos($secretKey, 'afcw_') !== 0) {
+            throw new AuthException('secretKey must be an afcw_test_... or afcw_live_... key');
+        }
+
         $this->secretKey = $secretKey;
 
         $sandbox = $options['sandbox'] ?? false;
         $baseUrl = getenv('AFCONWAVE_BASE_URL')
-            ?? $options['base_url']
-            ?? ($sandbox ? 'https://sandbox.api.afconwave.com/api/v1' : 'https://api.afconwave.com/api/v1');
+            ?: ($options['base_url'] ?? null)
+            ?: ($sandbox ? 'https://sandbox.api.afconwave.com/v1' : 'https://api.afconwave.com/v1');
 
         $this->client = new Client([
             'base_uri' => rtrim($baseUrl, '/') . '/',
             'headers' => [
-                'Authorization' => 'Bearer ' . $this->secretKey,
-                'Content-Type'  => 'application/json',
-                'Accept'        => 'application/json',
-                'User-Agent'    => 'AfconWave-PHP-SDK/' . self::VERSION,
+                'X-API-Key'    => $this->secretKey,
+                'Content-Type' => 'application/json',
+                'Accept'       => 'application/json',
+                'User-Agent'   => 'AfconWave-PHP-SDK/' . self::VERSION,
             ],
-            'timeout' => 30.0,
+            'timeout' => $options['timeout'] ?? 30.0,
         ]);
     }
 
@@ -42,30 +46,26 @@ class AfconWave
         string $payload,
         string $signature,
         string $secret,
-        int $tolerance = 300
+        int $tolerance = 300,
+        bool $timestampPrefixed = false,
+        ?string $timestamp = null
     ): bool {
-        if (empty($signature) || empty($secret)) {
+        if ($signature === '' || $secret === '') {
             return false;
         }
 
-        $expected = hash_hmac('sha256', $payload, $secret);
+        $message = ($timestampPrefixed && $timestamp !== null)
+            ? $timestamp . '.' . $payload
+            : $payload;
+
+        $expected = hash_hmac('sha256', $message, $secret);
         if (!hash_equals($expected, $signature)) {
             return false;
         }
 
-        $data = json_decode($payload, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            return true;
-        }
-
-        $timestamp = $data['timestamp']
-            ?? $data['created_at']
-            ?? $data['createdAt']
-            ?? null;
-
         if ($timestamp !== null) {
-            $ts = (int) $timestamp;
-            $webhookTime = $ts > 10_000_000_000 ? (int) ($ts / 1000) : $ts;
+            $ts = (float) $timestamp;
+            $webhookTime = $ts > 1e12 ? $ts / 1000.0 : $ts;
             if (abs(time() - $webhookTime) > $tolerance) {
                 return false;
             }
@@ -79,7 +79,7 @@ class AfconWave
         try {
             $response = $this->client->request($method, ltrim($uri, '/'), $options);
             $data = json_decode($response->getBody()->getContents(), true);
-            return $data['data'] ?? $data;
+            return $data ?? [];
         } catch (GuzzleException $e) {
             $response = method_exists($e, 'getResponse') ? $e->getResponse() : null;
             $status   = $response ? $response->getStatusCode() : 500;
@@ -93,75 +93,159 @@ class AfconWave
         }
     }
 
-    public function getBalances(): array
+    private function withIdempotency(array $options, ?string $key): array
     {
-        return $this->request('GET', 'balances');
+        if ($key) {
+            $options['headers'] = array_merge($options['headers'] ?? [], [
+                'Idempotency-Key' => $key,
+            ]);
+        }
+        return $options;
     }
 
-    public function createPayment(array $data)
-    {
-        return $this->request('POST', 'payments', ['json' => $data]);
-    }
+    // ── Deposits ────────────────────────────────────────────────────────────
 
-    public function retrievePayment(string $id)
+    public function deposits()
     {
-        return $this->request('GET', 'payments/' . $id);
-    }
-
-    public function listPayments(array $params = [])
-    {
-        return $this->request('GET', 'payments', ['query' => $params]);
-    }
-
-    public function createPayout(array $data)
-    {
-        return $this->request('POST', 'payouts', ['json' => $data]);
-    }
-
-    public function retrievePayout(string $id)
-    {
-        return $this->request('GET', 'payouts/' . $id);
-    }
-
-    public function listPayouts(array $params = [])
-    {
-        return $this->request('GET', 'payouts', ['query' => $params]);
-    }
-
-    public function payments()
-    {
-        return new class($this) {
+        $self = $this;
+        return new class($self) {
             private $parent;
             public function __construct($parent) { $this->parent = $parent; }
-            public function create(array $data) { return $this->parent->createPayment($data); }
-            public function retrieve(string $id) { return $this->parent->retrievePayment($id); }
-            public function list(array $params = []) { return $this->parent->listPayments($params); }
+
+            public function create(array $data)
+            {
+                $opts = $this->parent->withIdempotency(['json' => $data], $data['idempotency_key'] ?? null);
+                return $this->parent->request('POST', 'deposits', $opts);
+            }
+
+            public function retrieve(string $reference)
+            {
+                return $this->parent->request('GET', 'deposits/' . $reference);
+            }
+
+            public function list(array $params = [])
+            {
+                return $this->parent->request('GET', 'deposits', ['query' => $params]);
+            }
+
+            public function sync(string $reference)
+            {
+                return $this->parent->request('POST', 'deposits/' . $reference . '/sync');
+            }
         };
     }
 
-    public function payouts()
+    // ── Withdrawals ─────────────────────────────────────────────────────────
+
+    public function withdrawals()
     {
-        return new class($this) {
+        $self = $this;
+        return new class($self) {
             private $parent;
             public function __construct($parent) { $this->parent = $parent; }
-            public function create(array $data) { return $this->parent->createPayout($data); }
-            public function retrieve(string $id) { return $this->parent->retrievePayout($id); }
-            public function list(array $params = []) { return $this->parent->listPayouts($params); }
+
+            public function create(array $data)
+            {
+                $opts = $this->parent->withIdempotency(['json' => $data], $data['idempotency_key'] ?? null);
+                return $this->parent->request('POST', 'withdrawals', $opts);
+            }
+
+            public function list(array $params = [])
+            {
+                return $this->parent->request('GET', 'withdrawals', ['query' => $params]);
+            }
+
+            public function sync(string $reference)
+            {
+                return $this->parent->request('POST', 'withdrawals/' . $reference . '/sync');
+            }
+
+            public function methods(string $countryCode)
+            {
+                return $this->parent->request('GET', 'withdrawals/methods', [
+                    'query' => ['country_code' => $countryCode],
+                ]);
+            }
+
+            public function nigeriaBanks()
+            {
+                return $this->parent->request('GET', 'withdrawals/nigeria-banks');
+            }
         };
     }
 
-    public function crypto()
+    // ── Wallets ─────────────────────────────────────────────────────────────
+
+    public function wallets()
     {
-        return new class($this) {
+        $self = $this;
+        return new class($self) {
             private $parent;
             public function __construct($parent) { $this->parent = $parent; }
-            public function buy(array $data) { return $this->parent->request('POST', 'crypto/buy', ['json' => $data]); }
+
+            public function list(array $params = [])
+            {
+                return $this->parent->request('GET', 'wallets', ['query' => $params]);
+            }
+
+            public function ensure(string $currency, ?string $businessId = null)
+            {
+                $body = ['currency' => $currency];
+                if ($businessId) {
+                    $body['business_id'] = $businessId;
+                }
+                return $this->parent->request('POST', 'wallets/ensure', ['json' => $body]);
+            }
+
+            public function convert(array $data)
+            {
+                $opts = $this->parent->withIdempotency(['json' => $data], $data['idempotency_key'] ?? null);
+                return $this->parent->request('POST', 'wallets/convert', $opts);
+            }
+
+            public function transfer(array $data)
+            {
+                $opts = $this->parent->withIdempotency(['json' => $data], $data['idempotency_key'] ?? null);
+                return $this->parent->request('POST', 'wallets/transfer', $opts);
+            }
+
+            public function rates()
+            {
+                return $this->parent->request('GET', 'wallets/rates');
+            }
+        };
+    }
+
+    // ── Transactions ────────────────────────────────────────────────────────
+
+    public function transactions()
+    {
+        $self = $this;
+        return new class($self) {
+            private $parent;
+            public function __construct($parent) { $this->parent = $parent; }
+
+            public function list(array $params = [])
+            {
+                return $this->parent->request('GET', 'transactions', ['query' => $params]);
+            }
+
+            public function retrieve(string $idOrRef)
+            {
+                return $this->parent->request('GET', 'transactions/' . $idOrRef);
+            }
+
+            public function recent(int $limit = 4)
+            {
+                return $this->parent->request('GET', 'transactions/recent', ['query' => ['limit' => $limit]]);
+            }
         };
     }
 
     public function refunds()
     {
-        return new class($this) {
+        $self = $this;
+        return new class($self) {
             private $parent;
             public function __construct($parent) { $this->parent = $parent; }
             public function create(array $data) { return $this->parent->request('POST', 'refunds', ['json' => $data]); }
@@ -171,14 +255,84 @@ class AfconWave
 
     public function disputes()
     {
-        return new class($this) {
+        $self = $this;
+        return new class($self) {
             private $parent;
             public function __construct($parent) { $this->parent = $parent; }
             public function open(array $data) { return $this->parent->request('POST', 'disputes', ['json' => $data]); }
             public function list(array $params = []) { return $this->parent->request('GET', 'disputes', ['query' => $params]); }
-            public function resolve(string $id, array $data) {
-                return $this->parent->request('POST', "disputes/{$id}/resolve", ['json' => $data]);
+        };
+    }
+
+    public function airtime()
+    {
+        $self = $this;
+        return new class($self) {
+            private $parent;
+            public function __construct($parent) { $this->parent = $parent; }
+            public function purchase(array $data) { return $this->parent->request('POST', 'airtime', ['json' => $data]); }
+        };
+    }
+
+    public function data()
+    {
+        $self = $this;
+        return new class($self) {
+            private $parent;
+            public function __construct($parent) { $this->parent = $parent; }
+            public function purchase(array $data) { return $this->parent->request('POST', 'data', ['json' => $data]); }
+        };
+    }
+
+    public function paymentLinks()
+    {
+        $self = $this;
+        return new class($self) {
+            private $parent;
+            public function __construct($parent) { $this->parent = $parent; }
+            public function create(array $data) { return $this->parent->request('POST', 'payment-links', ['json' => $data]); }
+            public function list() { return $this->parent->request('GET', 'payment-links'); }
+        };
+    }
+
+    public function rails()
+    {
+        $self = $this;
+        return new class($self) {
+            private $parent;
+            public function __construct($parent) { $this->parent = $parent; }
+            public function payoutMethods(string $countryCode)
+            {
+                return $this->parent->request('GET', 'rails/payout-methods', [
+                    'query' => ['country_code' => $countryCode],
+                ]);
             }
         };
     }
+
+    // ── Back-compat ─────────────────────────────────────────────────────────
+
+    public function getBalances(array $params = []): array
+    {
+        $res = $this->wallets()->list($params);
+        return $res['wallets'] ?? $res;
+    }
+
+    /** @deprecated Use deposits()->create() */
+    public function createPayment(array $data)
+    {
+        return $this->deposits()->create($data);
+    }
+
+    /** @deprecated Use withdrawals()->create() */
+    public function createPayout(array $data)
+    {
+        return $this->withdrawals()->create($data);
+    }
+
+    /** @deprecated */
+    public function payments() { return $this->deposits(); }
+
+    /** @deprecated */
+    public function payouts() { return $this->withdrawals(); }
 }

@@ -1,7 +1,8 @@
 {
     "name": "afconwave/afconwave-php",
-    "description": "Official AfconWave PHP SDK — Global payments, payouts, crypto, refunds & disputes.",
+    "description": "Official AfconWave PHP SDK for API v2 — deposits, withdrawals, wallets, FX, refunds.",
     "type": "library",
+    "version": "2.0.0",
     "keywords": [
         "payments",
         "payouts",
@@ -9,10 +10,9 @@
         "africa",
         "mobile-money",
         "fintech",
-        "global",
         "cross-border"
     ],
-    "homepage": "https://docs.afconwave.com/sdks/php",
+    "homepage": "https://github.com/afconwave/afconwave-php",
     "license": "MIT",
     "authors": [
         {
@@ -24,7 +24,6 @@
     "support": {
         "issues": "https://github.com/afconwave/afconwave-php/issues",
         "source": "https://github.com/afconwave/afconwave-php",
-        "docs": "https://docs.afconwave.com",
         "email": "support@afconwave.com"
     },
     "require": {
